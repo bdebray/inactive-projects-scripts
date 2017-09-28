@@ -1,5 +1,6 @@
 # Identifies inactive projects 
 # Barry Mullan, Rally Software (December 2014)
+# Updated to pull ObjectId by Amy Meyers (March 2016)
 
 require 'rubygems'
 require 'nokogiri'
@@ -42,6 +43,9 @@ class RallyInactiveProjects
 		@active_since 							= Time.parse(config_hash['active-since']).utc.iso8601
 		@most_recent_creation_date	= Time.parse(config_hash['most_recent_creation_date']).utc.iso8601
 		@csv_file_name 							= config_hash['csv-file-name']
+		@project_name = config_hash["project"]
+		@exclude_parent_projects = config_hash["exclude-parent-projects"]
+		@max_artifact_count = config_hash["max-artifact-count"]
 
 		# Logger ------------------------------------------------------------
 		@logger 				          	= Logger.new('./inactive_projects.log')
@@ -113,6 +117,22 @@ class RallyInactiveProjects
 		return results.first
 	end
 
+	def find_project(object_id, most_recent_creation_date)
+		test_query = RallyAPI::RallyQuery.new()
+		test_query.type = "project"
+		test_query.fetch = "Name,Parent,State,ObjectID,Owner,TeamMembers,Children,CreationDate"
+		test_query.page_size = 200       #optional - default is 200
+		test_query.limit = 1000          #optional - default is 99999
+		test_query.project_scope_up = false
+		test_query.project_scope_down = false
+		test_query.order = "Name Asc"
+		test_query.query_string = "((ObjectID = \"#{object_id}\") AND (CreationDate <  \"#{most_recent_creation_date}\"))"
+
+		results = @rally.find(test_query)
+
+		return results.first
+	end
+
 	def find_user(objectid)
 
 		test_query = RallyAPI::RallyQuery.new()
@@ -144,6 +164,52 @@ class RallyInactiveProjects
 		test_query.workspace = @workspace
 
 		results = @rally.find(test_query)
+	end
+
+	def find_project_tree (most_recent_creation_date, project_name)
+		
+		query = RallyAPI::RallyQuery.new()
+		query.type = "project"
+		query.fetch = "Name,Parent,State,ObjectID,Owner,TeamMembers,Children,CreationDate"
+		query.page_size = 200       #optional - default is 200
+		# test_query.limit = 1000          #optional - default is 99999
+		query.project_scope_up = false
+		query.project_scope_down = true
+		query.order = "Name Asc"
+		query.query_string = "((CreationDate <  \"#{most_recent_creation_date}\") AND (Name = \"#{project_name}\"))"
+		query.workspace = @workspace
+
+		results = @rally.find(query)
+		
+		projects = []
+		results.each { |project|
+			projects.push(project)
+			projects.concat(find_child_projects(project, most_recent_creation_date, true))
+		}
+
+		return projects
+	end
+
+	def find_child_projects(project, most_recent_creation_date, enable_nesting)
+		results = []
+		if project == nil 
+			return results
+		elsif project['Children'] == nil 
+			return results
+		end
+
+		project['Children'].each { |child_project|
+			retrieved_child = find_project(child_project["ObjectID"], most_recent_creation_date)
+
+			next if retrieved_child == nil
+			
+			results.push(retrieved_child)
+			if enable_nesting
+				results.concat(find_child_projects(retrieved_child, most_recent_creation_date, enable_nesting))
+			end
+		}
+
+		return results
 	end
 
 	def find_artifacts_since (project,active_since)
@@ -185,20 +251,34 @@ class RallyInactiveProjects
 	def run
 		start_time = Time.now
 
-		projects = find_projects(@most_recent_creation_date)
+		projects = 
+			if @project_name.to_s.empty?
+				print "Retrieving all projects in workspace...\n"
+				@logger.info "Retrieving all projects in workspace...\n"
+				find_projects(@most_recent_creation_date)
+			else
+				print "Retrieving project tree for #{@project_name}...\n"
+				@logger.info "Retrieving project tree for #{@project_name}...\n"
+				find_project_tree(@most_recent_creation_date, @project_name)
+			end
+
 		print "Found #{projects.length} projects\n"
 		@logger.info "Found #{projects.length} projects\n"
 
 		CSV.open(@csv_file_name, "wb") do |csv|
-			csv << ["Project","Owner","EmailAddress","Parent","Artifacts Since(#{@active_since})","Project Creation Date"]
+			csv << ["ObjectID","Project","Owner","EmailAddress","Parent","Artifacts Since(#{@active_since})","Project Creation Date"]
 			projects.each { |project| 
 
-				# Omit projects with open child projects
-				openChildren = project['Children'].reject { |child| child['State'] == 'Closed' }
-				# print project["Name"],openChildren.length,"\n"
-				next if openChildren.length > 0
+				if @exclude_parent_projects
+					# Omit projects with open child projects
+					openChildren = project['Children'].reject { |child| child['State'] == 'Closed' }
+					# print project["Name"],openChildren.length,"\n"
+					next if openChildren.length > 0
+				end
 
 				artifacts = find_artifacts_since project,@active_since
+
+				next if artifacts.length > @max_artifact_count
 				
 				# if project["Owner"] != nil
 				# 	user = find_user( project["Owner"].ObjectID)
@@ -219,8 +299,8 @@ class RallyInactiveProjects
 				end
 
 				emaildisplay = user != nil ? user["EmailAddress"] : "(None)" 
-				print "Project:#{project["Name"]}\tCreated:#{project['CreationDate']}\tOwner:#{userdisplay} \tArtifacts Updated Since(#{@active_since}):\t#{artifacts.length}\n"
-				@logger.info "Project:#{project["Name"]}\tCreated:#{project['CreationDate']}\tOwner:#{userdisplay} \tArtifacts Updated Since(#{@active_since}):\t#{artifacts.length}\n"
+				print "ObjectID:#{project['ObjectID']}\tProject:#{project["Name"]}\tCreated:#{project['CreationDate']}\tOwner:#{userdisplay} \tArtifacts Updated Since(#{@active_since}):\t#{artifacts.length}\n"
+				@logger.info "ObjectID:#{project['ObjectID']}\tProject:#{project["Name"]}\tCreated:#{project['CreationDate']}\tOwner:#{userdisplay} \tArtifacts Updated Since(#{@active_since}):\t#{artifacts.length}\n"
 
 				# tm = project["TeamMembers"].size
 				# project["TeamMembers"].each { |tm| 
@@ -228,7 +308,7 @@ class RallyInactiveProjects
 				# }
 				# print "\n",tm,"\n"
 				projectCreationDate = Time.parse(project["CreationDate"]).strftime("%m/%d/%Y")
-				csv << [project["Name"], userdisplay,emaildisplay, project["Parent"],artifacts.length,projectCreationDate]
+				csv << [project["ObjectID"],project["Name"], userdisplay,emaildisplay, project["Parent"],artifacts.length,projectCreationDate]
 
 				##### If you wanted to automatically close projects with ZERO (0) artifacts updated since the @active_since date, UNCOMMENT the following
 				# begin

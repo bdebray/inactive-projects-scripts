@@ -1,6 +1,10 @@
 {
 	"api-key" : "Paste in your api-key",
 	"workspace" : "workspace name",
-	"active-since" : "02/01/2015",
-	"csv-file-name" : "projects.csv"
+    "project" : "project name OR leave blank",
+	"active-since" : "01/01/2017",
+    "most_recent_creation_date" : "01/01/2018",
+	"csv-file-name" : "projects.csv",
+    "exclude-parent-projects" : true,
+	"max-artifact-count" : 0
 }
