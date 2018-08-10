@@ -2,10 +2,7 @@
 # Barry Mullan, Rally Software (December 2014)
 # Updated to pull ObjectId by Amy Meyers (March 2016)
 
-require 'rubygems'
-require 'nokogiri'
 require 'rally_api'
-require 'markaby'
 require 'json'
 require 'csv'
 require 'logger'
