@@ -41,7 +41,8 @@ class RallyInactiveProjects
 		@rally = RallyAPI::RallyRestJson.new(config)
 		@workspace 									= find_workspace(config[:workspace])
 		@active_since 							= Time.parse(config_hash['active-since']).utc.iso8601
-		@most_recent_creation_date	= Time.parse(config_hash['most_recent_creation_date']).utc.iso8601
+        #optional; need to check for no value
+		@most_recent_creation_date	= config_hash['most_recent_creation_date'].to_s.empty? ? nil : Time.parse(config_hash['most_recent_creation_date']).utc.iso8601
 		@csv_file_name 							= config_hash['csv-file-name']
 		@project_name = config_hash["project"]
 		@exclude_parent_projects = config_hash["exclude-parent-projects"]
@@ -85,85 +86,93 @@ class RallyInactiveProjects
 
 	def find_workspace(name)
 
-		test_query = RallyAPI::RallyQuery.new()
-		test_query.type = "workspace"
-		test_query.fetch = "Name,ObjectID"
-		test_query.page_size = 200       #optional - default is 200
-		# test_query.limit = 1000          #optional - default is 99999
-		test_query.project_scope_up = false
-		test_query.project_scope_down = true
-		test_query.order = "Name Asc"
-		test_query.query_string = "(Name = \"#{name}\")"
+		query = RallyAPI::RallyQuery.new()
+		query.type = "workspace"
+		query.fetch = "Name,ObjectID"
+		query.page_size = 200       #optional - default is 200
+		# query.limit = 1000          #optional - default is 99999
+		query.project_scope_up = false
+		query.project_scope_down = true
+		query.order = "Name Asc"
+		query.query_string = "(Name = \"#{name}\")"
 
-		results = @rally.find(test_query)
+		results = @rally.find(query)
 
 		return results.first
 	end
 	
 	def find_project(name)
 
-		test_query = RallyAPI::RallyQuery.new()
-		test_query.type = "project"
-		test_query.fetch = "Name,ObjectID,CreationDate"
-		test_query.page_size = 200       #optional - default is 200
-		test_query.limit = 1000          #optional - default is 99999
-		test_query.project_scope_up = false
-		test_query.project_scope_down = true
-		test_query.order = "Name Asc"
-		test_query.query_string = "(Name = \"#{name}\")"
+		query = RallyAPI::RallyQuery.new()
+		query.type = "project"
+		query.fetch = "Name,ObjectID,CreationDate"
+		query.page_size = 200       #optional - default is 200
+		query.limit = 1000          #optional - default is 99999
+		query.project_scope_up = false
+		query.project_scope_down = true
+		query.order = "Name Asc"
+		query.query_string = "(Name = \"#{name}\")"
 
-		results = @rally.find(test_query)
+		results = @rally.find(query)
 
 		return results.first
 	end
 
 	def find_project(object_id, most_recent_creation_date)
-		test_query = RallyAPI::RallyQuery.new()
-		test_query.type = "project"
-		test_query.fetch = "Name,Parent,State,ObjectID,Owner,TeamMembers,Children,CreationDate"
-		test_query.page_size = 200       #optional - default is 200
-		test_query.limit = 1000          #optional - default is 99999
-		test_query.project_scope_up = false
-		test_query.project_scope_down = false
-		test_query.order = "Name Asc"
-		test_query.query_string = "((ObjectID = \"#{object_id}\") AND (CreationDate <  \"#{most_recent_creation_date}\"))"
+		query = RallyAPI::RallyQuery.new()
+		query.type = "project"
+		query.fetch = "Name,Parent,State,ObjectID,Owner,TeamMembers,Children,CreationDate"
+		query.page_size = 200       #optional - default is 200
+		query.limit = 1000          #optional - default is 99999
+		query.project_scope_up = false
+		query.project_scope_down = false
+		query.order = "Name Asc"
+        
+        if most_recent_creation_date.nil? and most_recent_creation_date.to_s.empty?
+            query.query_string = "(ObjectID = \"#{object_id}\")"
+        else
+            query.query_string = "((ObjectID = \"#{object_id}\") AND (CreationDate <  \"#{most_recent_creation_date}\"))"
+        end
 
-		results = @rally.find(test_query)
+		results = @rally.find(query)
 
 		return results.first
 	end
 
 	def find_user(objectid)
 
-		test_query = RallyAPI::RallyQuery.new()
-		test_query.type = "user"
-		test_query.fetch = "Name,ObjectID,UserName,EmailAddress,DisplayName"
-		test_query.page_size = 20       #optional - default is 200
-		test_query.limit = 1000          #optional - default is 99999
-		test_query.project_scope_up = false
-		test_query.project_scope_down = true
-		test_query.order = "Name Asc"
-		test_query.query_string = "(ObjectID = \"#{objectid}\")"
+		query = RallyAPI::RallyQuery.new()
+		query.type = "user"
+		query.fetch = "Name,ObjectID,UserName,EmailAddress,DisplayName"
+		query.page_size = 20       #optional - default is 200
+		query.limit = 1000          #optional - default is 99999
+		query.project_scope_up = false
+		query.project_scope_down = true
+		query.order = "Name Asc"
+		query.query_string = "(ObjectID = \"#{objectid}\")"
 
-		results = @rally.find(test_query)
+		results = @rally.find(query)
 
 		return results.first
 	end
 
 	def find_projects (most_recent_creation_date)
 
-		test_query = RallyAPI::RallyQuery.new()
-		test_query.type = "project"
-		test_query.fetch = "Name,Parent,State,ObjectID,Owner,TeamMembers,Children,CreationDate"
-		test_query.page_size = 200       #optional - default is 200
-		# test_query.limit = 1000          #optional - default is 99999
-		test_query.project_scope_up = false
-		test_query.project_scope_down = false
-		test_query.order = "Name Asc"
-		test_query.query_string = "(CreationDate <  \"#{most_recent_creation_date}\")"
-		test_query.workspace = @workspace
+		query = RallyAPI::RallyQuery.new()
+		query.type = "project"
+		query.fetch = "Name,Parent,State,ObjectID,Owner,TeamMembers,Children,CreationDate"
+		query.page_size = 200       #optional - default is 200
+		# query.limit = 1000          #optional - default is 99999
+		query.project_scope_up = false
+		query.project_scope_down = false
+		query.order = "Name Asc"
+        
+        if !most_recent_creation_date.nil? and !most_recent_creation_date.to_s.empty?
+            query.query_string = "(CreationDate <  \"#{most_recent_creation_date}\")"
+        end
+		query.workspace = @workspace
 
-		results = @rally.find(test_query)
+		results = @rally.find(query)
 	end
 
 	def find_project_tree (most_recent_creation_date, project_name)
@@ -172,11 +181,17 @@ class RallyInactiveProjects
 		query.type = "project"
 		query.fetch = "Name,Parent,State,ObjectID,Owner,TeamMembers,Children,CreationDate"
 		query.page_size = 200       #optional - default is 200
-		# test_query.limit = 1000          #optional - default is 99999
+		# query.limit = 1000          #optional - default is 99999
 		query.project_scope_up = false
 		query.project_scope_down = true
 		query.order = "Name Asc"
-		query.query_string = "((CreationDate <  \"#{most_recent_creation_date}\") AND (Name = \"#{project_name}\"))"
+        
+        if most_recent_creation_date.nil? and most_recent_creation_date.to_s.empty?
+            query.query_string = "(Name = \"#{project_name}\")"
+        else
+            query.query_string = "((CreationDate <  \"#{most_recent_creation_date}\") AND (Name = \"#{project_name}\"))"
+        end
+        
 		query.workspace = @workspace
 
 		results = @rally.find(query)
@@ -214,38 +229,19 @@ class RallyInactiveProjects
 
 	def find_artifacts_since (project,active_since)
 
-		test_query = RallyAPI::RallyQuery.new()
-		test_query.type = "artifact"
-		test_query.fetch = "Name,ObjectID"
-		test_query.page_size = 200       #optional - default is 200
-		# test_query.limit = 1000          #optional - default is 99999
-		test_query.project = project
-		test_query.project_scope_up = false
-		test_query.project_scope_down = false
-		# test_query.order = "Name Asc"
-		test_query.query_string = "(LastUpdateDate >= \"#{active_since}\")"
-		test_query.workspace = @workspace
+		query = RallyAPI::RallyQuery.new()
+		query.type = "artifact"
+		query.fetch = "Name,ObjectID"
+		query.page_size = 200       #optional - default is 200
+		# query.limit = 1000          #optional - default is 99999
+		query.project = project
+		query.project_scope_up = false
+		query.project_scope_down = false
+		# query.order = "Name Asc"
+		query.query_string = "(LastUpdateDate >= \"#{active_since}\")"
+		query.workspace = @workspace
 
-		results = @rally.find(test_query)
-	end
-
-	def find_test_case(name)
-
-		test_query = RallyAPI::RallyQuery.new()
-		test_query.type = "testcase"
-		test_query.fetch = "FormattedID,Name,ObjectID"
-		test_query.page_size = 200       #optional - default is 200
-		test_query.limit = 10          #optional - default is 99999
-		test_query.project_scope_up = false
-		test_query.project_scope_down = true
-		test_query.order = "Name Asc"
-		test_query.query_string = "(Name = \"#{name}\")"
-		test_query.project = @project
-
-		results = @rally.find(test_query)
-
-		return results.first
-
+		results = @rally.find(query)
 	end
 
 	def run
@@ -266,25 +262,19 @@ class RallyInactiveProjects
 		@logger.info "Found #{projects.length} projects\n"
 
 		CSV.open(@csv_file_name, "wb") do |csv|
-			csv << ["ObjectID","Project","Owner","EmailAddress","Parent","Artifacts Since(#{@active_since})","Project Creation Date"]
+			csv << ["ObjectID","Project","Owner","EmailAddress","Parent","Artifacts Since(#{@active_since})","Project Creation Date", "Child Projects (Open)"]
 			projects.each { |project| 
-
-				if @exclude_parent_projects
-					# Omit projects with open child projects
-					openChildren = project['Children'].reject { |child| child['State'] == 'Closed' }
-					# print project["Name"],openChildren.length,"\n"
-					next if openChildren.length > 0
-				end
+                
+                openChildren = project['Children'].reject { |child| child['State'] == 'Closed' }
+                
+                # Omit projects with open child projects
+                next if @exclude_parent_projects and openChildren.length > 0
 
 				artifacts = find_artifacts_since project,@active_since
 
-				next if artifacts.length > @max_artifact_count
-				
-				# if project["Owner"] != nil
-				# 	user = find_user( project["Owner"].ObjectID)
-				# else
-				# 	user = nil
-				# end
+                #if set, only include those that have the specified max count (or less)
+				next if !@max_artifact_count.nil? and artifacts.length > @max_artifact_count
+
 				user = project["Owner"] ? find_user( project["Owner"].ObjectID) : nil
 
 				userdisplay = user != nil ?  user["UserName"] : "(None)" 
@@ -302,13 +292,8 @@ class RallyInactiveProjects
 				print "ObjectID:#{project['ObjectID']}\tProject:#{project["Name"]}\tCreated:#{project['CreationDate']}\tOwner:#{userdisplay} \tArtifacts Updated Since(#{@active_since}):\t#{artifacts.length}\n"
 				@logger.info "ObjectID:#{project['ObjectID']}\tProject:#{project["Name"]}\tCreated:#{project['CreationDate']}\tOwner:#{userdisplay} \tArtifacts Updated Since(#{@active_since}):\t#{artifacts.length}\n"
 
-				# tm = project["TeamMembers"].size
-				# project["TeamMembers"].each { |tm| 
-				# 	print "\n",tm,"\n"
-				# }
-				# print "\n",tm,"\n"
 				projectCreationDate = Time.parse(project["CreationDate"]).strftime("%m/%d/%Y")
-				csv << [project["ObjectID"],project["Name"], userdisplay,emaildisplay, project["Parent"],artifacts.length,projectCreationDate]
+				csv << [project["ObjectID"],project["Name"], userdisplay,emaildisplay, project["Parent"],artifacts.length,projectCreationDate, openChildren.length]
 
 				##### If you wanted to automatically close projects with ZERO (0) artifacts updated since the @active_since date, UNCOMMENT the following
 				# begin
@@ -321,6 +306,7 @@ class RallyInactiveProjects
 
 			}
 		end
+        puts "Finished: elapsed time #{'%.1f' % ((Time.now - start_time)/60)} minutes."
 		@logger.info "Finished: elapsed time #{'%.1f' % ((Time.now - start_time)/60)} minutes."
 	end
 end
