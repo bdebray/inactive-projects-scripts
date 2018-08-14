@@ -294,7 +294,7 @@ class RallyInactiveProjects
 
 				##### If you wanted to automatically close projects with ZERO (0) artifacts updated since the @active_since date, UNCOMMENT the following
 				# begin
-				#   if artifacts.length == 0
+				#   if artifacts.length == 0 and openChildren.length <= 0
 				#     close_project(project)
 				#   end
 				# rescue Exception => e
