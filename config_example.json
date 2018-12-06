@@ -1,7 +1,9 @@
 {
-	"api-key" : "Paste in your api-key",
-	"workspace" : "workspace name",
-    "project" : "project name OR leave blank",
+	"api-key" : "Paste in your api-key or leave blank",
+	"username": "Your username if not using API Key",
+    "password": "Your password if not using API Key",
+    "workspace" : "Workspace name",
+    "project" : "Project name OR leave blank",
 	"active-since" : "yyyy-mm-dd",
     "most_recent_creation_date" : "yyyy-mm-dd or null",
 	"csv-file-name" : "projects.csv",

@@ -29,9 +29,14 @@ class RallyInactiveProjects
 		config_hash = JSON.parse(file)
 
 		config = {:base_url => "https://rally1.rallydev.com/slm"}
-		# config[:username]   = "user.name@domain.com"
-		# config[:password]   = "Password"
-		config[:api_key]   = config_hash["api-key"] 
+        
+        if !config_hash["api-key"].nil? && !config_hash["api-key"].empty?
+            config[:api_key] = config_hash["api-key"]
+        else
+            config[:username] = config_hash["username"]
+            config[:password] = config_hash["password"]
+        end
+
 		config[:workspace] = config_hash["workspace"]
 		config[:headers]    = headers #from RallyAPI::CustomHttpHeader.new()
 
